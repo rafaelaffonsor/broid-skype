@@ -1,0 +1,38 @@
+{
+  "name": "broid-messenger",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "license": "AGPL-3.0+",
+  "author": "Broid Team <opensource@broid.ai> (https://broid.ai)",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "npm run clean && typings install && tsc",
+    "watch": "concurrently --kill-others \"npm run lint:watch\" \"npm run tsc:watch\"",
+    "lint": "tslint -c tslint.json src/*",
+    "lint:watch": "watch 'tslint -c tslint.json src/*' src",
+    "tsc:watch": "tsc --watch",
+    "clean": "rm -rf dist && rm -rf typings",
+    "travis": "npm run lint && npm run build",
+    "release": "npm run build && npm publish"
+  },
+  "dependencies": {
+    "bluebird": "^3.4.7",
+    "body-parser": "^1.15.2",
+    "botbuilder": "^3.5.1",
+    "broid-schemas": "^1.0.2",
+    "broid-utils": "^1.0.3",
+    "express": "^4.14.0",
+    "mimetype": "^0.0.8",
+    "node-uuid": "^1.4.7",
+    "ramda": "^0.23.0",
+    "rxjs": "^5.0.2"
+  },
+  "devDependencies": {
+    "concurrently": "^3.1.0",
+    "tslint": "^4.3.1",
+    "tslint-eslint-rules": "^3.2.3",
+    "typescript": "^2.1.4",
+    "typings": "^2.1.0",
+    "watch": "^1.0.1"
+  }
+}
