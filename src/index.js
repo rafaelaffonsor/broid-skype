@@ -22,6 +22,7 @@ export default class Adapter {
       service_id: uuid.v4(),
       log_level: null,
       http: {
+        webhook_url: 'http://localhost:8080',
         port: 8080,
         host: '0.0.0.0',
       },
@@ -36,7 +37,6 @@ export default class Adapter {
     })
 
     this.session = new botbuilder.UniversalBot(this.session_connector)
-    this.server = express()
     this.formatter = new Parser({
       service_id: this.options.service_id,
       debug: this.options.log_level ? 'debug' : null,
@@ -53,6 +53,7 @@ export default class Adapter {
     }
 
     this._connected = true
+    this.server = express()
     this.server.post('/', this.session_connector.listen())
 
     this.server.listen(this.options.http.port, this.options.http.host, () =>
