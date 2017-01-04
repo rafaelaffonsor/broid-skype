@@ -6,11 +6,11 @@ It provides a higher level API to manage several messaging platforms at once, an
 
 ## Getting started
 
-The following examples use yarn package manager but you can use npm.
+- `connect` and `listen` method return [a observable](http://reactivex.io/rxjs/).
 
-`connect` and `listen` method return [a observable](http://reactivex.io/rxjs/).
+- `send` method return [a promise](https://developer.mozilla.org/fr/docs/Web/JavaScript/Reference/Objets_globaux/Promise)
 
-### Connect to Slack
+### Connect to Skype
 
 ```javascript
 import broidSkype from 'broid-skype'
@@ -27,6 +27,18 @@ skype.connect()
     complete: () => console.log('complete'),
   })
 ```
+
+**Options availables**
+
+| name             | Type     | default    | Description  |
+| ---------------- |:--------:| :--------: | --------------------------|
+| token       | string   |      |  |
+| token_secret       | string   |      |  |
+| service_id       | string   | random     | Arbitrary identifier of the running instance |
+| log_level        | string   | `debug`    | Can be : `fatal`, `error`, `warn`, `info`, `debug`, `trace` |
+| http             | object   | `{ "port": 8080, "http": "0.0.0.0", "webhook_url": "http://localhost:8080" }` | HTTP options (`host`, `port`, `webhook_url`) |
+| as_user        | boolean   | false        | Pass true to post the message as the authed user. |
+
 
 ### Receive a message
 
@@ -236,7 +248,7 @@ skype.send(message_formated)
 
 ## License
 
-Copyright (c) [2016] Broid.AI
+Copyright (c) [2016] Broid.ai
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
