@@ -42,8 +42,6 @@ export default class Parser {
   public parse(event: Object): Promise<Object> {
     this.logger.debug("Parse process", { event });
 
-    console.log("name:", JSON.stringify(event, null, 2));
-
     const normalized = cleanNulls(event);
     if (!normalized || R.isEmpty(normalized)) { return Promise.resolve(null); }
 

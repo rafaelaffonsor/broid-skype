@@ -1,10 +1,10 @@
 import * as Promise from "bluebird";
 import * as botbuilder from "botbuilder";
-import { concat, Logger } from "broid-helpers";
+import { Logger } from "broid-helpers";
 import broidSchemas from "broid-schemas";
+import * as mimetype from "mimetype";
 import * as uuid from "node-uuid";
 import * as R from "ramda";
-import * as rp from "request-promise";
 import { Observable } from "rxjs/Rx";
 
 import { IAdapterHTTPOptions, IAdapterOptions } from "./interfaces";
@@ -61,7 +61,7 @@ export default class Adapter {
       return Promise.resolve(this.storeAddresses.get(id));
     }
 
-    return Promise.reject(new Error(`Address ${id} not found`))
+    return Promise.reject(new Error(`Address ${id} not found`));
   }
 
   // Return the service ID of the current instance
@@ -103,17 +103,17 @@ export default class Adapter {
   // Listen "message" event from Messenger
   public listen(): Observable<Object> {
     return Observable.create((observer) => {
-      this.session.dialog('/', (event) => {
+      this.session.dialog("/", (event) => {
         this.storeAddresses.set(R.path([
-          'message',
-          'address',
-          'id'
-        ], event), R.path(['message', 'address'], event));
+          "message",
+          "address",
+          "id",
+        ], event), R.path(["message", "address"], event));
         this.storeUsers.set(R.path([
-          'message',
-          'user',
-          'id'
-        ], event), R.path(['message', 'user'], event));
+          "message",
+          "user",
+          "id",
+        ], event), R.path(["message", "user"], event));
 
         return Promise.resolve(event.message)
           .then((normalized) => this.parser.parse(normalized))
@@ -131,120 +131,123 @@ export default class Adapter {
     this.logger.debug("sending", { message: data });
     return broidSchemas(data, "send")
       .then(() => {
-        const toID: string = R.path(["to", "id"], data)
-          || R.path(["to", "name"], data);
-        const type: string = R.path(["object", "type"], data);
-        const content: string = R.path(["object", "content"], data);
-        const name: string = R.path(["object", "name"], data) || content;
+        const context = R.path(["object", "context", "content"], data);
+        const content = R.path(["object", "content"], data);
+        const name = R.path(["object", "name"], data);
+        const type = R.path(["object", "type"], data);
+        const contextArr = R.split("#", context);
+        const addressID = contextArr[0];
 
-        const attachments = R.path(["object", "attachment"], data) || [];
-        const buttons = R.filter((attachment) =>
-          attachment.type === "Button", attachments);
-
-        let fButtons = R.map((button) => {
-          // facebook type: postback, element_share
-          if (!button.mediaType) {
-            return {
-              payload: button.url,
-              title: button.name,
-              type: "postback",
-            };
-          } else if (button.mediaType === "text/html") {
-            // facebook type: web_url, account_link
-            return {
-              title: button.name,
-              type: "web_url",
-              url: button.url,
-            };
-          } else if (button.mediaType === "audio/telephone-event") {
-            // facebook type: phone_number
-            return {
-              payload: button.url,
-              title: button.name,
-              type: "phone_number",
-            };
+        let address = this.storeAddresses.get(addressID);
+        if (!address) {
+          if (R.length(contextArr) !== 4) {
+            return Promise
+              .reject(new Error("Context value should use the form: address.id#address.conversation.id#channelId#bot.id"));
           }
 
-          return null;
-        }, buttons);
-        fButtons = R.reject(R.isNil)(fButtons);
+          const conversationID = contextArr[1];
+          const channelID = contextArr[2];
+          const botID = contextArr[3];
+          const userID = R.path(["to", "id"], data);
 
-        const messageData = {
-          message: {
-            attachment: {},
-            text: "",
-          },
-          recipient: { id: toID },
-        };
-
-        if (type === "Image") {
-          const attachment = {
-            payload: {
-              elements: [{
-                buttons: !R.isEmpty(fButtons) ? fButtons : null,
-                image_url: R.path(["object", "url"], data),
-                item_url: "",
-                subtitle: content !== name ? content : "",
-                title: name || "",
-              }],
-              template_type: "generic",
+          address = {
+            bot: {
+              id: botID,
             },
-            type: "template",
+            channelId: channelID,
+            conversation: {
+              id: conversationID,
+            },
+            id: addressID,
+            serviceUrl: `https://${channelID}.botframework.com`,
+            useAuth: true,
+            user: {
+              id: userID,
+            },
           };
-          messageData.message.attachment = attachment;
-        } else if (type === "Video") {
-          if (!R.isEmpty(fButtons)) {
-            const attachment = {
-              payload: {
-                elements: [{
-                  buttons: fButtons,
-                  image_url: R.path(["object", "url"], data),
-                  item_url: "",
-                  subtitle: content !== name ? content : "",
-                  title: name || "",
-                }],
-                template_type: "generic",
-              },
-              type: "template",
-            };
-            messageData.message.attachment = attachment;
-          } else {
-            messageData.message.text = concat([
-              R.path(["object", "name"], data) || "",
-              R.path(["object", "content"], data) || "",
-              R.path(["object", "url"], data),
-            ]);
+        }
+
+        // Process attachment
+        const attachmentButtons = R.filter((attachment) =>
+          attachment.type === "Button",
+          R.path(["object", "attachment"], data) || []);
+
+        const messageButtons = R.map((button) => {
+          if (button.mediaType === "text/html") {
+            return new botbuilder.CardAction()
+              .type('openUrl')
+              .value(button.url)
+              .title(button.name || button.content || "Click to open website in your browser");
+          } else if (button.mediaType === "audio/telephone-event") {
+            return new botbuilder.CardAction()
+              .type('call')
+              .value(`tel:${button.url}`)
+              .title(button.name || button.content || "Click to call");
           }
-        } else if (type === "Note") {
-          if (!R.isEmpty(fButtons)) {
-            const attachment = {
-              payload: {
-                elements: [{
-                  buttons: fButtons,
-                  image_url: "",
-                  item_url: "",
-                  subtitle: content || "",
-                  title: name || "",
-                }],
-                template_type: "generic",
-              },
-              type: "template",
-            };
-            messageData.message.attachment = attachment;
+          return new botbuilder.CardAction()
+            .type('imBack')
+            .value(button.url)
+            .title(button.name || button.content || "Click to send response to bot");
+        }, attachmentButtons);
+
+        let messageAttachments: any[] = [];
+        const messageBuilder = new botbuilder.Message()
+          .textFormat(botbuilder.TextFormat.markdown)
+          .address(address as botbuilder.IAddress);
+
+        if (type === "Note") {
+          if (!messageButtons) {
+            messageBuilder.text(content);
           } else {
-            messageData.message.text = R.path(["object", "content"], data);
-            delete messageData.message.attachment;
+            messageAttachments = [
+              new botbuilder.HeroCard()
+                .title(name)
+                .text(content)
+                .buttons(messageButtons),
+            ];
           }
+        } else if (type === "Image" || type === "Video") {
+          const url = R.path(["object", "url"], data);
+          let hero = new botbuilder.HeroCard()
+            .title(name)
+            .text(content);
+
+          if (messageButtons) {
+            hero.buttons(messageButtons);
+          }
+
+          if (type === "Image") {
+            hero.images([new botbuilder.CardImage().url(url)]);
+            messageAttachments = [hero];
+          } else {
+            messageAttachments = [{
+              contentType: mimetype.lookup(url),
+              contentUrl: url,
+            }, hero];
+          }
+
+          // messageAttachments = hero;
+
+          // TODO
+          // Video Card not supported by Skype
+          // messageBuilder = new botbuilder.Message()
+          //   .textFormat(botbuilder.TextFormat.markdown)
+          //   .address(address)
+          //   .attachments([
+          //     new botbuilder.VideoCard()
+          //       .title(name)
+          //       .text(content)
+          //       .image(botbuilder.CardImage.create(null, preview))
+          //       .media([ botbuilder.CardMedia.create(null, url) ])
+          //       .autoloop(true)
+          //       .autostart(false)
+          //       .shareable(true)
+          //   ]);
         }
 
         if (type === "Note" || type === "Image" || type === "Video") {
-          return rp({
-            json: messageData,
-            method: "POST",
-            qs: { access_token: this.token },
-            uri: "https://graph.facebook.com/v2.8/me/messages",
-          })
-          .then(() => ({ type: "sended", serviceID: this.serviceId() }));
+          messageBuilder.attachments(messageAttachments);
+          return this.session.send(messageBuilder);
         }
 
         return Promise.reject(new Error("Note, Image, Video are only supported."));
